@@ -17,9 +17,10 @@ use pocketmine\level\Level;
 use pocketmine\level\LevelException;
 use pocketmine\event\level\LevelInitEvent;
 use pocketmine\event\level\LevelLoadEvent;
-
-use pocketmine\event\server\DataPacketReceiveEvent;
-use pocketmine\network\mcpe\protocol\ModalFormResponsePacket;
+use pocketmine\event\block\BlockBreakEvent;
+use pocketmine\math\Vector3;
+use pocketmine\block\Block;
+use pocketmine\utils\Binary;
 
 class FlatPreset extends PluginBase implements Listener{
 
@@ -35,6 +36,19 @@ class FlatPreset extends PluginBase implements Listener{
 		if($cmd == "preset"){
 			if(!isset($args[0]))return false;
 			switch ($args[0]) {
+				case 'pos1':
+					$this->pos1break[$name] = true;
+					unset($this->pos2[$name]);
+					$sender->sendMessage("ブロックを壊してください");
+					return true;
+				case 'pos2':
+					if(!isset($this->pos1[$name])){
+						$sender->sendMessage("まずpos1を設定してください");
+						return true;
+					}
+					$this->pos2break[$name] = true;
+					$sender->sendMessage("ブロックを壊してください");
+					return true;
 				case 'create':
 					if(!isset($args[1])){
 						$sender->sendMessage("/preset create <name>");
@@ -50,12 +64,11 @@ class FlatPreset extends PluginBase implements Listener{
 					return true;
 					break;
 				case 'edit':
-					//if($sender->getName() == "CONSOLE"){
 						if(!isset($args[1])){
 							$sender->sendMessage("/preset edit add <名前> <ブロックId> <高さ>\n/preset edit del <名前> <登録したときに出るid>\n/preset edit <up | down> <名前> <登録したときに出るid>\n/preset list <名前>  今の状態、idの確認");
 							return true;
 						}
-						switch ($args[1]) {
+						switch ($args[1]){
 							case 'add':
 								if(!isset($args[2]) or !isset($args[3]) or !isset($args[4])){
 									$sender->sendMessage("/preset edit add <名前> <ブロックId> <高さ>");
@@ -86,7 +99,6 @@ class FlatPreset extends PluginBase implements Listener{
 								$this->config->set($args[2],$datas);
 								$this->config->save();
 								$sender->sendMessage("追加しました idは".$count."です");
-								return true;
 								break;
 							case 'del':
 								if(!isset($args[2]) or !isset($args[3])){
@@ -204,32 +216,58 @@ class FlatPreset extends PluginBase implements Listener{
 								return true;
 							 	break;
 						}
-					/*}
-					if(!isset($args[1])){
-						$sender->sendMessage("/preset edit <name>");
-						return true;
-					}*/
 					return true;
-					break;
 				case 'generate':
-					if(!isset($args[1]) or !isset($args[2])){
+					if(!isset($args[1])){
 						$sender->sendMessage("/preset generate <ワールドの名前> <プリセットの名前>");
 						return true;
 					}
-					if(!$this->config->exists($args[2])){
-						$sender->sendMessage("そんなものはありません");
-						return true;
+					if(!isset($args[2])){
+						if(!isset($this->pos1[$name]) or !isset($this->pos2[$name])){
+							$sender->sendMessage("まずposを設定してください");
+							return true;
+						}
+						$bottom = min($this->pos1[$name]["y"],$this->pos2[$name]);
+						$top = max($this->pos1[$name]["y"],$this->pos2[$name]);
+						$level = $this->getServer()->getLevelByName($this->pos1[$name]["level"]);
+						$preset = "2;";
+						$i = 0;
+						$count = 1;
+						$b = $level->getBlock(new Vector3($this->pos1[$name]["x"],$bottom,$this->pos1[$name]["z"]));
+						$last = $b->getId().":".$b->getDamage();
+						for ($y=$bottom; $y <=$top; $y++) { 
+							$block = $level->getBlock(new Vector3($this->pos1[$name]["x"],$y,$this->pos1[$name]["z"]));
+							$id = $block->getId();
+							$meta = $block->getDamage();
+							if($last !== $id.":".$meta){
+								$i ++;
+								$preset = $preset.$count."x".$last;
+								if($i != 1)$preset.$preset = ",";
+								$count = 1;
+								$last = $id.":".$meta;
+							}else{
+								$count ++;
+							}
+						}
+						$preset = $preset.";1";
+						echo $preset;
+						$this->generate($args[1],$preset,$sender);
+					}else{
+						if(!$this->config->exists($args[2])){
+							$sender->sendMessage("そんなものはありません");
+							return true;
+						}
+						$datas = $this->config->get($args[2]);
+						$count = count($datas);
+						$preset = ";1";
+						for ($i=1; $i <= $count; $i++) {
+							if($i != 1)$preset = ",".$preset;
+							$preset = $datas[$i]["height"]."x".$datas[$i]["id"].$preset;
+						}
+						$preset = "2;".$preset;
+						echo $preset;
+						$this->generate($args[1],$preset,$sender);
 					}
-					$datas = $this->config->get($args[2]);
-					$count = count($datas);
-					$preset = ";1";
-					for ($i=1; $i <= $count; $i++) {
-						if($i != 1)$preset = ",".$preset;
-						$preset = $datas[$i]["height"]."x".$datas[$i]["id"].$preset;
-					}
-					$preset = "2;".$preset;
-					echo $preset;
-					$this->generate($args[1],$preset,$sender);
 					return true;
 					break;
 				default:
@@ -239,6 +277,32 @@ class FlatPreset extends PluginBase implements Listener{
 		}
 	}
 
+	public function onBreak(BlockBreakEvent $event){
+		$player = $event->getPlayer();
+		$name = $player->getName();
+		if(isset($this->pos1break[$name])){
+			$event->setCancelled();
+			$block = $event->getBlock();
+			$this->pos1[$name] = [
+				"x" => $block->x,
+				"y" => $block->y,
+				"z" => $block->z,
+				"level" => $block->level->getFolderName()
+			];
+			unset($this->pos1break[$name]);
+			$player->sendMessage("設定しました(".$this->pos1[$name]["x"].",".$this->pos1[$name]["y"].",".$this->pos1[$name]["z"].",".$this->pos1[$name]["level"].")");
+		}elseif(isset($this->pos2break[$name])){
+			$event->setCancelled();
+			$block = $event->getBlock();
+			if($block->x !== $this->pos1[$name]["x"] or $block->z !== $this->pos1[$name]["z"]){
+				$player->sendMessage("高さ以外は最初に設定したのと同じ場所にしてください\n(".$this->pos1[$name]["x"].", y ,".$this->pos1[$name]["z"].",".$this->pos1[$name]["level"].")");
+				return;
+			}
+			$this->pos2[$name] = $block->y;
+			unset($this->pos2break[$name]);
+			$player->sendMessage("設定しました");
+		}
+	}
 
 	public function generate($name,$preset,$player){
 		if($this->getServer()->isLevelGenerated($name)){
@@ -246,21 +310,19 @@ class FlatPreset extends PluginBase implements Listener{
 			return false;
 		}
 
-		$seed = $seed ?? (unpack("N", random_bytes(4))[1] << 32 >> 32);
+		$seed = $seed ?? Binary::readInt(random_bytes(4));
 		$generator = Generator::getGenerator("FLAT");
-		$provider = LevelProviderManager::getProviderByName($providerName = "pmanvil");
+		$providerClass = LevelProviderManager::getProviderByName("pmanvil");
 		$options["preset"] = $preset;
 		try{
 			$path = $this->getServer()->getDataPath() . "worlds/" . $name . "/";
-			$provider::generate($path, $name, $seed, $generator, $options);
-			$level = new Level($this->getServer(), $name, $path, (string) $provider);
-			//$this->getServer()->levels[$level->getId()] = $level;
+			$providerClass::generate($path, $name, $seed, $generator, $options);
+			$level = new Level($this->getServer(), $name, new $providerClass($path));
 			$level->initLevel();
 			$level->setTickRate(1);
 		}catch(Throwable $e){
-			$player->sendMessage($this->getLanguage()->translateString("pocketmine.level.generationError", [$name, $e->getMessage()]));
-			$this->logger->error($this->getLanguage()->translateString("pocketmine.level.generationError", [$name, $e->getMessage()]));
-			$this->logger->logException($e);
+			$this->getServer()->logger->error($this->getServer()->getLanguage()->translateString("pocketmine.level.generationError", [$name, $e->getMessage()]));
+			$this->getServer()->logger->logException($e);
 			return false;
 		}
 		$this->getServer()->getPluginManager()->callEvent(new LevelInitEvent($level));

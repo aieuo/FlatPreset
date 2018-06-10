@@ -62,6 +62,7 @@ class FlatPreset extends PluginBase implements Listener{
 					$this->config->save();
 					$sender->sendMessage("作成しました\n/preset edit <名前> で編集できます");
 					return true;
+					break;
 				case 'generate':
 					if(!isset($args[1])){
 						$sender->sendMessage("/preset generate <ワールドの名前> <プリセットの名前>");
@@ -76,25 +77,25 @@ class FlatPreset extends PluginBase implements Listener{
 						$top = max($this->pos1[$name]["y"],$this->pos2[$name]);
 						$level = $this->getServer()->getLevelByName($this->pos1[$name]["level"]);
 						$preset = "2;";
-						$i = 0;
 						$count = 1;
 						$b = $level->getBlock(new Vector3($this->pos1[$name]["x"],$bottom,$this->pos1[$name]["z"]));
 						$last = $b->getId().":".$b->getDamage();
-						for ($y=$bottom; $y <=$top; $y++) { 
+						for ($y= $bottom +1; $y <=$top; $y++) {
 							$block = $level->getBlock(new Vector3($this->pos1[$name]["x"],$y,$this->pos1[$name]["z"]));
 							$id = $block->getId();
 							$meta = $block->getDamage();
 							if($last !== $id.":".$meta){
-								$i ++;
-								$preset = $preset.$count."x".$last;
-								if($i != 1)$preset.$preset = ",";
+								$preset = $preset.$count."x".$last.",";
 								$count = 1;
 								$last = $id.":".$meta;
 							}else{
 								$count ++;
 							}
+							if($y == $top){
+								$preset = $preset.$count."x".$last.",";
+							}
 						}
-						$preset = $preset.";1";
+						$preset = str_replace(",;",";",($preset.";1"));
 						echo $preset;
 						$this->generate($args[1],$preset,$sender);
 					}else{
@@ -114,8 +115,10 @@ class FlatPreset extends PluginBase implements Listener{
 						$this->generate($args[1],$preset,$sender);
 					}
 					return true;
+					break;
 				default:
 					return false;
+					break;
 			}
 		}
 	}

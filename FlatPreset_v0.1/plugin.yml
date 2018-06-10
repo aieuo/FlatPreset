@@ -1,12 +1,12 @@
 name: FlatPreset
 main: aieuo\FlatPreset
 version: 0.1
-api: [3.0.0-ALPHA11]
+api: [3.0.0-ALPHA11,3.0.0-ALPHA12]
 load: POSTWORLD
 author: aieuo
 commands:
  preset:
-  description: 壁のドットの絵？
-  usage: /wall <list | create>
+  description: 好きなブロックでワールド作成
+  usage: /preset <pos1 | pos2 | generate>
   permission: op
  

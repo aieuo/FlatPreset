@@ -8,7 +8,6 @@ use pocketmine\command\Command;
 use pocketmine\command\CommandSender;
 use pocketmine\utils\Config;
 use pocketmine\item\Item;
-use pocketmine\level\generator\generatorManager;
 use pocketmine\event\block\BlockBreakEvent;
 use pocketmine\math\Vector3;
 use pocketmine\block\Block;
@@ -16,12 +15,16 @@ use pocketmine\block\Block;
 class FlatPreset extends PluginBase implements Listener{
 
     public function onEnable(){
-            $this->getServer()->getPluginManager()->registerEvents($this,$this);
-            if(!file_exists($this->getDataFolder())) @mkdir($this->getDataFolder(), 0721, true);
-        	$this->config = new Config($this->getDataFolder()."config.yml", Config::YAML);
+        $this->getServer()->getPluginManager()->registerEvents($this,$this);
+        if(!file_exists($this->getDataFolder())) @mkdir($this->getDataFolder(), 0721, true);
+    	$this->config = new Config($this->getDataFolder()."config.yml", Config::YAML, [
+    		"empty" => "2;;1",
+    		"stone" => "2;1x7:0,99x1:0;0"
+    	]);
+    	$this->config->save();
     }
 
-	public function onCommand(CommandSender $sender, Command $command,string $label, array $args):bool{
+	public function onCommand(CommandSender $sender, Command $command, string $label, array $args):bool{
 		$cmd = $command->getName();
 		$name = $sender->getName();
 		if($cmd == "preset"){
@@ -39,23 +42,27 @@ class FlatPreset extends PluginBase implements Listener{
 					$this->break[$name] = 2;
 					$sender->sendMessage("ブロックを壊してください");
 					return true;
-				case 'create':
+				case 'save':
 					if(!isset($args[1])){
-						$sender->sendMessage("/preset create <name>");
+						$sender->sendMessage("/preset save <name>");
+						return true;
+					}
+					if(!isset($this->pos[$name][0]) or !isset($this->pos[$name][1])){
+						$sender->sendMessage("まずposを設定してください");
 						return true;
 					}
 					if($this->config->exists($args[1])){
-						$sender->sendMessage("その名前は既に作成されています");
+						$sender->sendMessage("その名前は既に使用されています");
 						return true;
 					}
-					$this->config->set($args[1],[]);
+					$preset = $this->createPreset(...$this->pos[$name]);
+					$this->config->set($args[1],$preset);
 					$this->config->save();
-					$sender->sendMessage("作成しました\n/preset edit <名前> で編集できます");
+					$sender->sendMessage("保存しました");
 					return true;
-					break;
 				case 'generate':
 					if(!isset($args[1])){
-						$sender->sendMessage("/preset generate <ワールドの名前> <プリセットの名前>");
+						$sender->sendMessage("/preset generate <ワールドの名前> [<プリセットの名前>]");
 						return true;
 					}
 					if(!isset($args[2])){
@@ -64,24 +71,16 @@ class FlatPreset extends PluginBase implements Listener{
 							return true;
 						}
 						if($this->getServer()->isLevelGenerated($args[1])){
-							$player->sendMessage("そのワールドは既に存在します");
+							$sender->sendMessage("そのワールドは既に存在します");
 							return true;
 						}
 						$preset = $this->createPreset(...$this->pos[$name]);
 					} else {
 						if(!$this->config->exists($args[2])){
-							$sender->sendMessage("そんなものはありません");
+							$sender->sendMessage("その名前の物は登録されていません");
 							return true;
 						}
-						$datas = $this->config->get($args[2]);
-						$count = count($datas);
-						$preset = ";1";
-						for ($i=1; $i <= $count; $i++) {
-							if($i != 1)$preset = ",".$preset;
-							$preset = $datas[$i]["height"]."x".$datas[$i]["id"].$preset;
-						}
-						$preset = "2;".$preset;
-						$this->generate($args[1],$preset,$sender);
+						$preset = $this->config->get($args[2]);
 					}
 					$this->getServer()->generateLevel($args[1], null, generatorManager::getGenerator("flat"), ["preset" => $preset]);
 					$sender->sendMessage("ワールド ".$args[1]." を作成しました");

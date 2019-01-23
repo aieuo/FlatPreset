@@ -68,32 +68,8 @@ class FlatPreset extends PluginBase implements Listener{
 							$player->sendMessage("そのワールドは既に存在します");
 							return true;
 						}
-						$bottom = min($this->pos1[$name]["y"],$this->pos2[$name]);
-						$top = max($this->pos1[$name]["y"],$this->pos2[$name]);
-						$level = $this->getServer()->getLevelByName($this->pos1[$name]["level"]);
-						$preset = "2;";
-						$count = 1;
-						$b = $level->getBlock(new Vector3($this->pos1[$name]["x"],$bottom,$this->pos1[$name]["z"]));
-						$last = $b->getId().":".$b->getDamage();
-						for($y= $bottom +1; $y <=$top; $y++) {
-							$block = $level->getBlock(new Vector3($this->pos1[$name]["x"],$y,$this->pos1[$name]["z"]));
-							$id = $block->getId();
-							$meta = $block->getDamage();
-							if($last !== $id.":".$meta){
-								$preset = $preset.$count."x".$last.",";
-								$count = 1;
-								$last = $id.":".$meta;
-							}else{
-								$count ++;
-							}
-							if($y == $top){
-								$preset = $preset.$count."x".$last.",";
-							}
-						}
-						$preset = str_replace(",;",";",($preset.";1"));
-						$this->getServer()->generateLevel($args[1], null, generatorManager::getGenerator("flat"),["preset"=>$preset]);
-						$sender->sendMessage("ワールドを作成しました");
-					}else{
+						$preset = $this->createPreset(...$this->pos[$name]);
+					} else {
 						if(!$this->config->exists($args[2])){
 							$sender->sendMessage("そんなものはありません");
 							return true;
@@ -108,11 +84,13 @@ class FlatPreset extends PluginBase implements Listener{
 						$preset = "2;".$preset;
 						$this->generate($args[1],$preset,$sender);
 					}
+					$this->getServer()->generateLevel($args[1], null, generatorManager::getGenerator("flat"), ["preset" => $preset]);
+					$sender->sendMessage("ワールド ".$args[1]." を作成しました");
+					$this->getServer()->loadLevel($args[1]);
+					$sender->sendMessage("ワールド ".$args[1]." を読み込みました");
 					return true;
-					break;
 				default:
 					return false;
-					break;
 			}
 		}
 	}
@@ -137,10 +115,26 @@ class FlatPreset extends PluginBase implements Listener{
 			if($block->x !== $this->pos1[$name]["x"] or $block->z !== $this->pos1[$name]["z"]){
 				$player->sendMessage("高さ以外は最初に設定したのと同じ場所にしてください\n(".$this->pos1[$name]["x"].", y ,".$this->pos1[$name]["z"].",".$this->pos1[$name]["level"].")");
 				return;
+	public function createPreset($pos1, $pos2) {
+		$top = max($pos1->y, $pos2->y);
+		$bottom = min($pos1->y, $pos2->y);
+		$level = $pos1->level;
+		$blocks = [];
+		$count = 1;
+		$block = $level->getBlock(new Vector3($pos1->x, $bottom, $pos1->z));
+		$last = $block->getId().":".$block->getDamage();
+		for($y = $bottom + 1; $y <= $top; $y ++) {
+			$block = $level->getBlock($block->add(0, 1));
+			$id = $block->getId().":".$block->getDamage();
+			if($last === $id) {
+				$count ++;
+			} else {
+				$blocks[] = $count."x".$last;
+				$count = 1;
+				$last = $id;
 			}
-			$this->pos2[$name] = $block->y;
-			unset($this->pos2break[$name]);
-			$player->sendMessage("設定しました");
 		}
+		$blocks[] = $count."x".$last;
+		return "2;".implode(",", $blocks).";1";
 	}
 }

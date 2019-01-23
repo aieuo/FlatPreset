@@ -28,16 +28,15 @@ class FlatPreset extends PluginBase implements Listener{
 			if(!isset($args[0]))return false;
 			switch ($args[0]) {
 				case 'pos1':
-					$this->pos1break[$name] = true;
-					unset($this->pos2[$name]);
+					$this->break[$name] = 1;
 					$sender->sendMessage("ブロックを壊してください");
 					return true;
 				case 'pos2':
-					if(!isset($this->pos1[$name])){
+					if(!isset($this->pos[$name][0])){
 						$sender->sendMessage("まずpos1を設定してください");
 						return true;
 					}
-					$this->pos2break[$name] = true;
+					$this->break[$name] = 2;
 					$sender->sendMessage("ブロックを壊してください");
 					return true;
 				case 'create':
@@ -60,7 +59,7 @@ class FlatPreset extends PluginBase implements Listener{
 						return true;
 					}
 					if(!isset($args[2])){
-						if(!isset($this->pos1[$name]) or !isset($this->pos2[$name])){
+						if(!isset($this->pos[$name][0]) or !isset($this->pos[$name][1])){
 							$sender->sendMessage("まずposを設定してください");
 							return true;
 						}
@@ -98,23 +97,27 @@ class FlatPreset extends PluginBase implements Listener{
 	public function onBreak(BlockBreakEvent $event){
 		$player = $event->getPlayer();
 		$name = $player->getName();
-		if(isset($this->pos1break[$name])){
-			$event->setCancelled();
-			$block = $event->getBlock();
-			$this->pos1[$name] = [
-				"x" => $block->x,
-				"y" => $block->y,
-				"z" => $block->z,
-				"level" => $block->level->getFolderName()
-			];
-			unset($this->pos1break[$name]);
-			$player->sendMessage("設定しました(".$this->pos1[$name]["x"].",".$this->pos1[$name]["y"].",".$this->pos1[$name]["z"].",".$this->pos1[$name]["level"].")");
-		}elseif(isset($this->pos2break[$name])){
-			$event->setCancelled();
-			$block = $event->getBlock();
-			if($block->x !== $this->pos1[$name]["x"] or $block->z !== $this->pos1[$name]["z"]){
-				$player->sendMessage("高さ以外は最初に設定したのと同じ場所にしてください\n(".$this->pos1[$name]["x"].", y ,".$this->pos1[$name]["z"].",".$this->pos1[$name]["level"].")");
-				return;
+		if(!isset($this->break[$name])) return;
+		$event->setCancelled();
+		$block = $event->getBlock();
+		switch ($this->break[$name]) {
+			case 1:
+				$this->pos[$name][0] = $block;
+				$player->sendMessage("一つ目の場所を設定しました(".$block->x.",".$block->y.",".$block->z.",".$block->level->getFolderName().")");
+				break;
+			case 2:
+				$pos1 = $this->pos[$name][0];
+				if($block->x !== $pos1->x or $block->z !== $pos1->z or $block->level->getFolderName() !== $pos1->level->getFolderName()){
+					$player->sendMessage("高さ以外は最初に設定したのと同じ場所にしてください\n(".$pos1->x.",?y,".$pos1->z.",".$pos1->level->getFolderName().")");
+					break;
+				}
+				$this->pos[$name][1] = $block;
+				$player->sendMessage("二つ目の場所を設定しました(".$block->x.",".$block->y.",".$block->z.",".$block->level->getFolderName().")");
+				break;
+		}
+		unset($this->break[$name]);
+	}
+
 	public function createPreset($pos1, $pos2) {
 		$top = max($pos1->y, $pos2->y);
 		$bottom = min($pos1->y, $pos2->y);

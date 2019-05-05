@@ -11,6 +11,7 @@ use pocketmine\item\Item;
 use pocketmine\event\block\BlockBreakEvent;
 use pocketmine\math\Vector3;
 use pocketmine\block\Block;
+use pocketmine\level\generator\GeneratorManager;
 
 class FlatPreset extends PluginBase implements Listener{
 
@@ -82,7 +83,7 @@ class FlatPreset extends PluginBase implements Listener{
 						}
 						$preset = $this->config->get($args[2]);
 					}
-					$this->getServer()->generateLevel($args[1], null, generatorManager::getGenerator("flat"), ["preset" => $preset]);
+					$this->getServer()->generateLevel($args[1], null, GeneratorManager::getGenerator("flat"), ["preset" => $preset]);
 					$sender->sendMessage("ワールド ".$args[1]." を作成しました");
 					$this->getServer()->loadLevel($args[1]);
 					$sender->sendMessage("ワールド ".$args[1]." を読み込みました");
